@@ -1,0 +1,11 @@
+{
+  "name": "Fruit Camera Ninja",
+  "short_name": "Fruit Ninja",
+  "description": "Fruit Ninja in real life using your camera and hand tracking",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07111e",
+  "theme_color": "#07111e"
+}
