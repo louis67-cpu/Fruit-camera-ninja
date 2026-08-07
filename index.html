@@ -758,9 +758,30 @@ function checkSlice(
       fruit.dead =
         true;
 
-
-    if (fruit.isBomb) {
+if (fruit.isBomb) {
   score -= 300;
+
+  // Vibrate when bomb is sliced
+  if (navigator.vibrate) {
+    navigator.vibrate([150, 60, 250]);
+  }
+
+  // Explosion effect
+  const explosion = document.createElement("div");
+  explosion.textContent = "💥";
+  explosion.style.position = "fixed";
+  explosion.style.left = fruit.x + "px";
+  explosion.style.top = fruit.y + "px";
+  explosion.style.fontSize = "90px";
+  explosion.style.transform = "translate(-50%, -50%)";
+  explosion.style.zIndex = "9999";
+  explosion.style.pointerEvents = "none";
+  document.body.appendChild(explosion);
+
+  setTimeout(() => {
+    explosion.remove();
+  }, 500);
+
 } else {
   score += 100;
   slicedCount += 1;
