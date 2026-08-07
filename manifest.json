@@ -7,5 +7,12 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#07111e",
-  "theme_color": "#07111e"
+  "theme_color": "#07111e",
+"icons": [
+  {
+    "src": "IMG_20260730_160930.jpg",
+    "sizes": "512x512",
+    "type": "image/jpeg"
+  }
+] 
 }
