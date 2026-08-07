@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Fruit Camera Ninja V5 Low Latency</title>
+
+<style>
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#07111e;
+  color:#fff;
+  font-family:Arial,sans-serif
+}
+
+#wrap{
+  position:relative;
+  width:100%;
+  height:100%
+}
+
+video,canvas{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover
+}
+
+video{
+  transform:scaleX(-1);
+  filter:brightness(.8)
+}
+
+canvas{
+  touch-action:none
+}
+
+#hud{
+  position:absolute;
+  top:10px;
+  left:8px;
+  right:8px;
+  display:flex;
+  justify-content:space-between;
+  gap:6px;
+  pointer-events:none
+}
+
+.pill{
+  background:rgba(0,0,0,.66);
+  padding:8px 10px;
+  border-radius:14px;
+  font-weight:bold;
+  font-size:13px
+}
+
+#status{
+  position:absolute;
+  top:58px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,.68);
+  padding:8px 12px;
+  border-radius:12px;
+  max-width:92%;
+  text-align:center;
+  font-size:13px
+}
+
+.screen{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(0,0,0,.5)
+}
+
+.card{
+  width:min(92vw,520px);
+  background:rgba(8,17,32,.96);
+  border-radius:22px;
+  padding:22px
+}
+
+h1{
+  font-size:40px;
+  line-height:.95;
+  margin:0 0 12px
+}
+
+p{
+  line-height:1.45;
+  color:#dce8f5
+}
+
+input,button{
+  width:100%;
+  padding:14px;
+  border-radius:13px;
+  font-size:16px;
+  box-sizing:border-box
+}
+
+input{
+  border:1px solid #456;
+  background:#102039;
+  color:#fff
+}
+
+button{
+  border:0;
+  margin-top:10px;
+  font-weight:bold
+}
+
+.primary{
+  background:#ffd248;
+  color:#211300
+}
+
+.secondary{
+  background:#1b2c48;
+  color:#fff
+}
+
+.hidden{
+  display:none!important
+}
+
+#countdown{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:120px;
+  font-weight:900;
+  text-shadow:0 8px 25px #000;
+  pointer-events:none
+}
+
+.rank{
+  display:grid;
+  grid-template-columns:40px 1fr auto;
+  padding:9px 0;
+  border-bottom:1px solid rgba(255,255,255,.1)
+}
+
+.tip{
+  font-size:13px;
+  color:#bdd1e6;
+  background:#0e1b30;
+  border-radius:12px;
+  padding:11px;
+  margin-top:12px
+}
+</style>
+</head>
+
+<body>
+
+<div id="wrap">
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="pill">
+    Score <span id="score">0</span>/2000
+  </div>
+
+  <div class="pill">
+    Time <span id="time">0.00</span>s
+  </div>
+
+  <div class="pill">
+    Fruit <span id="fruitCount">0</span>/20
+  </div>
+</div>
+
+<div id="status">
+  Press Start
+</div>
+
+<div id="countdown" class="hidden"></div>
+
+<div id="startScreen" class="screen">
+  <div class="card">
+
+    <h1>
+      ⚡ Fruit Camera Ninja V5
+    </h1>
+
+    <p>
+      Low-latency mode:
+      faster hand tracking with less delay.
+    </p>
+
+    <input
+      id="playerName"
+      value="Player 1"
+      maxlength="18"
+    >
+
+    <button
+      id="startBtn"
+      class="primary"
+    >
+      Start Low-Latency Tracking
+    </button>
+
+    <button
+      id="cameraBtn"
+      class="secondary"
+    >
+      Test Camera
+    </button>
+
+    <div class="tip">
+      Best result:
+      use good lighting,
+      keep one hand visible,
+      and keep your hand near the middle of the camera.
+    </div>
+
+  </div>
+</div>
+
+<div id="finishScreen" class="screen hidden">
+  <div class="card">
+
+    <h2>🏁 Finished!</h2>
+
+    <h1 id="finalTime">
+      0.00s
+    </h1>
+
+    <div id="ranking"></div>
+
+    <button
+      id="againBtn"
+      class="primary"
+    >
+      Play Again
+    </button>
+
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<script>
+
+const video =
+  document.getElementById("video");
+
+const canvas =
+  document.getElementById("canvas");
+
+const ctx =
+  canvas.getContext("2d");
+
+const statusEl =
+  document.getElementById("status");
+
+const hud =
+  document.getElementById("hud");
+
+const startScreen =
+  document.getElementById("startScreen");
+
+const finishScreen =
+  document.getElementById("finishScreen");
+
+const scoreEl =
+  document.getElementById("score");
+
+const timeEl =
+  document.getElementById("time");
+
+const fruitCountEl =
+  document.getElementById("fruitCount");
+
+const countdownEl =
+  document.getElementById("countdown");
+
+
+let width =
+  window.innerWidth;
+
+let height =
+  window.innerHeight;
+
+let pixelRatio =
+  Math.min(
+    window.devicePixelRatio || 1,
+    2
+  );
+
+
+let stream = null;
+
+let hands = null;
+
+let tracking = false;
+
+let processing = false;
+
+
+let gameRunning = false;
+
+let startTime = 0;
+
+let score = 0;
+
+let slicedCount = 0;
+
+let spawnTimer = 0;
+
+
+let fruits = [];
+
+let particles = [];
+
+let trail = [];
+
+
+let handPoint = null;
+
+let lastHandPoint = null;
+
+let lastHandTime = 0;
+
+let handVisible = false;
+
+
+let lastInferenceTime = 0;
+
+
+/*
+  Maximum hand AI processing speed.
+
+  Around 35 detections per second.
+*/
+const MIN_INFERENCE_TIME = 28;
+
+
+function resizeCanvas() {
+
+  width =
+    window.innerWidth;
+
+  height =
+    window.innerHeight;
+
+  pixelRatio =
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    );
+
+  canvas.width =
+    width * pixelRatio;
+
+  canvas.height =
+    height * pixelRatio;
+
+  canvas.style.width =
+    width + "px";
+
+  canvas.style.height =
+    height + "px";
+
+  ctx.setTransform(
+    pixelRatio,
+    0,
+    0,
+    pixelRatio,
+    0,
+    0
+  );
+}
+
+
+window.addEventListener(
+  "resize",
+  resizeCanvas
+);
+
+resizeCanvas();
+
+
+function random(min,max) {
+
+  return (
+    min +
+    Math.random() *
+    (max-min)
+  );
+}
+
+
+function clamp(
+  value,
+  minimum,
+  maximum
+) {
+
+  return Math.max(
+    minimum,
+    Math.min(
+      maximum,
+      value
+    )
+  );
+}
+
+
+
+class Fruit {
+
+  constructor() {
+
+    this.x =
+      random(
+        width * 0.14,
+        width * 0.86
+      );
+
+
+    this.y =
+      height + 70;
+
+
+    this.radius =
+      clamp(
+        Math.min(
+          width,
+          height
+        ) * 0.06,
+        38,
+        60
+      );
+
+
+    this.velocityX =
+      random(
+        -2.5,
+        2.5
+      );
+
+
+    this.velocityY =
+      random(
+        -16.2,
+        -13
+      );
+
+
+    this.gravity =
+      0.36;
+
+
+    this.rotation =
+      random(
+        -0.5,
+        0.5
+      );
+
+
+    this.rotationSpeed =
+      random(
+        -0.07,
+        0.07
+      );
+
+
+    const fruitList = [
+
+      "🍉",
+      "🍎",
+      "🍊",
+      "🍋",
+      "🥝",
+      "🍑"
+
+    ];
+
+
+    this.emoji =
+      fruitList[
+        Math.floor(
+          Math.random() *
+          fruitList.length
+        )
+      ];
+
+
+    this.dead = false;
+  }
+
+
+  update() {
+
+    this.x +=
+      this.velocityX;
+
+
+    this.y +=
+      this.velocityY;
+
+
+    this.velocityY +=
+      this.gravity;
+
+
+    this.rotation +=
+      this.rotationSpeed;
+
+
+    if (
+      this.y >
+      height + 110
+    ) {
+
+      this.dead = true;
+
+    }
+  }
+
+
+  draw() {
+
+    ctx.save();
+
+
+    ctx.translate(
+      this.x,
+      this.y
+    );
+
+
+    ctx.rotate(
+      this.rotation
+    );
+
+
+    ctx.font =
+      (
+        this.radius *
+        1.7
+      ) +
+      "px Apple Color Emoji, Segoe UI Emoji";
+
+
+    ctx.textAlign =
+      "center";
+
+
+    ctx.textBaseline =
+      "middle";
+
+
+    ctx.fillText(
+      this.emoji,
+      0,
+      0
+    );
+
+
+    ctx.restore();
+  }
+
+}
+
+
+
+function distancePointToLine(
+  px,
+  py,
+  ax,
+  ay,
+  bx,
+  by
+) {
+
+  const abX =
+    bx - ax;
+
+
+  const abY =
+    by - ay;
+
+
+  const apX =
+    px - ax;
+
+
+  const apY =
+    py - ay;
+
+
+  const lengthSquared =
+    abX * abX +
+    abY * abY ||
+    1;
+
+
+  const progress =
+    clamp(
+      (
+        apX * abX +
+        apY * abY
+      ) /
+      lengthSquared,
+      0,
+      1
+    );
+
+
+  const nearestX =
+    ax +
+    progress *
+    abX;
+
+
+  const nearestY =
+    ay +
+    progress *
+    abY;
+
+
+  return Math.hypot(
+
+    px-nearestX,
+    py-nearestY
+
+  );
+}
+
+
+
+function checkSlice(
+  start,
+  end,
+  handSpeed
+) {
+
+  if (
+    !gameRunning
+  ) {
+
+    return;
+
+  }
+
+
+  /*
+    Hand must move quickly enough
+    to count as a slice.
+  */
+  if (
+    handSpeed <
+    360
+  ) {
+
+    return;
+
+  }
+
+
+  const movementDistance =
+    Math.hypot(
+
+      end.x-start.x,
+      end.y-start.y
+
+    );
+
+
+  /*
+    Ignore impossible jumps
+    caused by tracking mistakes.
+  */
+  if (
+    movementDistance >
+    Math.max(
+      width,
+      height
+    ) * 0.48
+  ) {
+
+    return;
+
+  }
+
+
+  /*
+    Invisible sword width.
+
+    Bigger value =
+    easier slicing.
+  */
+  const bladeRadius =
+    48;
+
+
+  for (
+    const fruit
+    of fruits
+  ) {
+
+
+    if (
+      fruit.dead
+    ) {
+
+      continue;
+
+    }
+
+
+    const distance =
+      distancePointToLine(
+
+        fruit.x,
+        fruit.y,
+
+        start.x,
+        start.y,
+
+        end.x,
+        end.y
+
+      );
+
+
+    if (
+      distance <
+      fruit.radius * 0.95 +
+      bladeRadius
+    ) {
+
+
+      fruit.dead =
+        true;
+
+
+      score +=
+        100;
+
+
+      slicedCount +=
+        1;
+
+
+      scoreEl.textContent =
+        score;
+
+
+      fruitCountEl.textContent =
+        slicedCount;
+
+
+      createParticles(
+        fruit
+      );
+
+
+      if (
+        navigator.vibrate
+      ) {
+
+        navigator.vibrate(
+          15
+        );
+
+      }
+
+
+      if (
+        score >=
+        2000
+      ) {
+
+        finishGame();
+
+      }
+
+    }
+
+  }
+
+}
+
+
+
+function createParticles(
+  fruit
+) {
+
+  for (
+    let i=0;
+    i<20;
+    i++
+  ) {
+
+    particles.push({
+
+      x:
+        fruit.x,
+
+      y:
+        fruit.y,
+
+      velocityX:
+        random(
+          -7,
+          7
+        ),
+
+      velocityY:
+        random(
+          -9,
+          2
+        ),
+
+      life:
+        32,
+
+      size:
+        random(
+          3,
+          9
+        )
+
+    });
+
+  }
+
+}
+
+
+
+function drawTrail() {
+
+  if (
+    trail.length <
+    2
+  ) {
+
+    return;
+
+  }
+
+
+  ctx.save();
+
+
+  ctx.lineCap =
+    "round";
+
+
+  ctx.lineJoin =
+    "round";
+
+
+  for (
+    let i=1;
+    i<trail.length;
+    i++
+  ) {
+
+
+    ctx.strokeStyle =
+      `rgba(
+        255,
+        255,
+        255,
+        ${
+          (
+            i /
+            trail.length
+          ) * 0.9
+        }
+      )`;
+
+
+    ctx.lineWidth =
+      5 +
+      i * 0.7;
+
+
+    ctx.shadowColor =
+      "#67eaff";
+
+
+    ctx.shadowBlur =
+      16;
+
+
+    ctx.beginPath();
+
+
+    ctx.moveTo(
+
+      trail[i-1].x,
+      trail[i-1].y
+
+    );
+
+
+    ctx.lineTo(
+
+      trail[i].x,
+      trail[i].y
+
+    );
+
+
+    ctx.stroke();
+
+  }
+
+
+  ctx.restore();
+
+}
+
+
+
+function drawHandPointer() {
+
+  if (
+    !handPoint
+  ) {
+
+    return;
+
+  }
+
+
+  ctx.save();
+
+
+  ctx.strokeStyle =
+    handVisible
+    ?
+    "#76ffad"
+    :
+    "#ff687c";
+
+
+  ctx.lineWidth =
+    3;
+
+
+  ctx.beginPath();
+
+
+  ctx.arc(
+
+    handPoint.x,
+    handPoint.y,
+
+    14,
+
+    0,
+    Math.PI * 2
+
+  );
+
+
+  ctx.stroke();
+
+
+  ctx.restore();
+
+}
+
+
+
+function updateParticles() {
+
+  for (
+    const particle
+    of particles
+  ) {
+
+
+    particle.x +=
+      particle.velocityX;
+
+
+    particle.y +=
+      particle.velocityY;
+
+
+    particle.velocityY +=
+      0.2;
+
+
+    particle.life--;
+
+  }
+
+
+  particles =
+    particles.filter(
+
+      particle =>
+        particle.life > 0
+
+    );
+
+}
+
+
+
+function drawParticles() {
+
+  for (
+    const particle
+    of particles
+  ) {
+
+
+    ctx.globalAlpha =
+      particle.life /
+      32;
+
+
+    ctx.fillStyle =
+      "#ffd45b";
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+
+      particle.x,
+      particle.y,
+
+      particle.size,
+
+      0,
+      Math.PI * 2
+
+    );
+
+
+    ctx.fill();
+
+  }
+
+
+  ctx.globalAlpha =
+    1;
+
+}
+
+
+
+function gameLoop() {
+
+  ctx.clearRect(
+
+    0,
+    0,
+    width,
+    height
+
+  );
+
+
+  if (
+    gameRunning
+  ) {
+
+
+    timeEl.textContent =
+      (
+        (
+          performance.now() -
+          startTime
+        ) /
+        1000
+      ).toFixed(2);
+
+
+    spawnTimer--;
+
+
+    const activeFruit =
+      fruits.filter(
+
+        fruit =>
+          !fruit.dead
+
+      ).length;
+
+
+    if (
+      spawnTimer <= 0 &&
+      activeFruit < 2
+    ) {
+
+
+      fruits.push(
+        new Fruit()
+      );
+
+
+      spawnTimer =
+        Math.floor(
+          random(
+            34,
+            50
+          )
+        );
+
+    }
+
+
+    for (
+      const fruit
+      of fruits
+    ) {
+
+      fruit.update();
+
+    }
+
+
+    fruits =
+      fruits.filter(
+
+        fruit =>
+          !fruit.dead ||
+          fruit.y <
+          height + 110
+
+      );
+
+  }
+
+
+  for (
+    const fruit
+    of fruits
+  ) {
+
+
+    if (
+      !fruit.dead
+    ) {
+
+      fruit.draw();
+
+    }
+
+  }
+
+
+  updateParticles();
+
+  drawParticles();
+
+  drawTrail();
+
+  drawHandPointer();
+
+
+  trail =
+    trail.slice(
+      -10
+    );
+
+
+  requestAnimationFrame(
+    gameLoop
+  );
+
+}
+
+
+gameLoop();
+
+
+
+async function openCamera() {
+
+  try {
+
+
+    statusEl.textContent =
+      "Opening camera...";
+
+
+    if (
+      stream
+    ) {
+
+      stream
+        .getTracks()
+        .forEach(
+          track =>
+            track.stop()
+        );
+
+    }
+
+
+    /*
+      Lower resolution makes
+      hand AI much faster.
+    */
+    stream =
+      await navigator.mediaDevices
+        .getUserMedia({
+
+          video: {
+
+            facingMode:
+              "user",
+
+            width: {
+              ideal:640,
+              max:640
+            },
+
+            height: {
+              ideal:480,
+              max:480
+            },
+
+            frameRate: {
+              ideal:30,
+              max:30
+            }
+
+          },
+
+          audio:false
+
+        });
+
+
+    video.srcObject =
+      stream;
+
+
+    await video.play();
+
+
+    statusEl.textContent =
+      "Camera working";
+
+
+    return true;
+
+
+  }
+  catch(error) {
+
+
+    statusEl.textContent =
+      "Camera error: " +
+      error.message;
+
+
+    alert(
+
+      "Camera failed: " +
+      error.message
+
+    );
+
+
+    return false;
+
+  }
+
+}
+
+
+
+async function setupHandTracking() {
+
+  if (
+    hands
+  ) {
+
+    return;
+
+  }
+
+
+  statusEl.textContent =
+    "Loading fast hand tracking...";
+
+
+  hands =
+    new Hands({
+
+      locateFile:
+        fileName =>
+
+          "https://cdn.jsdelivr.net/npm/" +
+          "@mediapipe/hands/" +
+          fileName
+
+    });
+
+
+  /*
+    modelComplexity 0 =
+    faster on mobile phones.
+  */
+  hands.setOptions({
+
+    maxNumHands:
+      1,
+
+    modelComplexity:
+      0,
+
+    minDetectionConfidence:
+      0.52,
+
+    minTrackingConfidence:
+      0.55,
+
+    selfieMode:
+      true
+
+  });
+
+
+  hands.onResults(
+    results => {
+
+
+      processing =
+        false;
+
+
+      const landmarks =
+        results
+          .multiHandLandmarks
+          ?.[0];
+
+
+      handVisible =
+        Boolean(
+          landmarks
+        );
+
+
+      if (
+        !landmarks
+      ) {
+
+
+        handPoint =
+          null;
+
+
+        lastHandPoint =
+          null;
+
+
+        lastHandTime =
+          0;
+
+
+        if (
+          gameRunning
+        ) {
+
+          statusEl.textContent =
+            "Show your hand to the camera";
+
+        }
+
+
+        return;
+
+      }
+
+
+      /*
+        Landmark 8 =
+        index fingertip.
+      */
+      const fingertip =
+        landmarks[8];
+
+
+      const rawPoint = {
+
+        x:
+          (
+            1 -
+            fingertip.x
+          ) *
+          width,
+
+        y:
+          fingertip.y *
+          height
+
+      };
+
+
+      const now =
+        performance.now();
+
+
+      if (
+        !handPoint
+      ) {
+
+
+        handPoint =
+          {
+            ...rawPoint
+          };
+
+
+        lastHandPoint =
+          {
+            ...rawPoint
+          };
+
+
+        lastHandTime =
+          now;
+
+
+        return;
+
+      }
+
+
+      const deltaTime =
+        Math.max(
+
+          (
+            now -
+            lastHandTime
+          ) /
+          1000,
+
+          0.001
+
+        );
+
+
+      const velocityX =
+
+        (
+          rawPoint.x -
+          handPoint.x
+        ) /
+        deltaTime;
+
+
+      const velocityY =
+
+        (
+          rawPoint.y -
+          handPoint.y
+        ) /
+        deltaTime;
+
+
+      const speed =
+        Math.hypot(
+
+          velocityX,
+          velocityY
+
+        );
+
+
+      /*
+        Fast movement =
+        less smoothing.
+
+        This reduces lag.
+      */
+      let smoothing;
+
+
+      if (
+        speed >
+        900
+      ) {
+
+        smoothing =
+          0.92;
+
+      }
+      else if (
+        speed >
+        500
+      ) {
+
+        smoothing =
+          0.82;
+
+      }
+      else {
+
+        smoothing =
+          0.68;
+
+      }
+
+
+      const nextPoint = {
+
+        x:
+          handPoint.x +
+          (
+            rawPoint.x -
+            handPoint.x
+          ) *
+          smoothing,
+
+        y:
+          handPoint.y +
+          (
+            rawPoint.y -
+            handPoint.y
+          ) *
+          smoothing
+
+      };
+
+
+      /*
+        Predict slightly forward.
+
+        This helps compensate
+        for camera + AI delay.
+      */
+      const predictionMilliseconds =
+        38;
+
+
+      const predictedPoint = {
+
+        x:
+          clamp(
+
+            nextPoint.x +
+            velocityX *
+            (
+              predictionMilliseconds /
+              1000
+            ),
+
+            0,
+            width
+
+          ),
+
+        y:
+          clamp(
+
+            nextPoint.y +
+            velocityY *
+            (
+              predictionMilliseconds /
+              1000
+            ),
+
+            0,
+            height
+
+          )
+
+      };
+
+
+      lastHandPoint =
+        {
+          ...handPoint
+        };
+
+
+      handPoint =
+        predictedPoint;
+
+
+      if (
+        gameRunning
+      ) {
+
+
+        checkSlice(
+
+          lastHandPoint,
+
+          handPoint,
+
+          speed
+
+        );
+
+
+        if (
+          speed >
+          120
+        ) {
+
+          trail.push(
+            {
+              ...handPoint
+            }
+          );
+
+        }
+
+      }
+
+
+      lastHandTime =
+        now;
+
+
+      if (
+        speed >
+        360 &&
+        gameRunning
+      ) {
+
+        statusEl.textContent =
+          "⚔️ Slice!";
+
+      }
+      else {
+
+        statusEl.textContent =
+          "Hand detected";
+
+      }
+
+    }
+  );
+
+}
+
+
+
+async function trackingLoop() {
+
+  if (
+    !tracking
+  ) {
+
+    return;
+
+  }
+
+
+  const now =
+    performance.now();
+
+
+  if (
+
+    !processing &&
+
+    video.readyState >= 2 &&
+
+    hands &&
+
+    (
+      now -
+      lastInferenceTime
+    ) >=
+    MIN_INFERENCE_TIME
+
+  ) {
+
+
+    processing =
+      true;
+
+
+    lastInferenceTime =
+      now;
+
+
+    try {
+
+
+      await hands.send({
+
+        image:
+          video
+
+      });
+
+
+    }
+    catch(error) {
+
+
+      processing =
+        false;
+
+    }
+
+  }
+
+
+  requestAnimationFrame(
+    trackingLoop
+  );
+
+}
+
+
+
+async function startTracking() {
+
+  const cameraStarted =
+    await openCamera();
+
+
+  if (
+    !cameraStarted
+  ) {
+
+    return false;
+
+  }
+
+
+  await setupHandTracking();
+
+
+  if (
+    !tracking
+  ) {
+
+    tracking =
+      true;
+
+
+    trackingLoop();
+
+  }
+
+
+  return true;
+
+}
+
+
+
+function wait(
+  milliseconds
+) {
+
+  return new Promise(
+    resolve =>
+
+      setTimeout(
+        resolve,
+        milliseconds
+      )
+  );
+
+}
+
+
+
+async function showCountdown() {
+
+  countdownEl
+    .classList
+    .remove(
+      "hidden"
+    );
+
+
+  for (
+    const number
+    of [
+      "3",
+      "2",
+      "1",
+      "GO!"
+    ]
+  ) {
+
+
+    countdownEl.textContent =
+      number;
+
+
+    if (
+      number ===
+      "GO!"
+    ) {
+
+      await wait(
+        400
+      );
+
+    }
+    else {
+
+      await wait(
+        650
+      );
+
+    }
+
+  }
+
+
+  countdownEl
+    .classList
+    .add(
+      "hidden"
+    );
+
+}
+
+
+
+async function startGame() {
+
+  const trackingStarted =
+    await startTracking();
+
+
+  if (
+    !trackingStarted
+  ) {
+
+    return;
+
+  }
+
+
+  startScreen
+    .classList
+    .add(
+      "hidden"
+    );
+
+
+  finishScreen
+    .classList
+    .add(
+      "hidden"
+    );
+
+
+  hud
+    .classList
+    .remove(
+      "hidden"
+    );
+
+
+  score =
+    0;
+
+
+  slicedCount =
+    0;
+
+
+  fruits =
+    [];
+
+
+  particles =
+    [];
+
+
+  trail =
+    [];
+
+
+  handPoint =
+    null;
+
+
+  lastHandPoint =
+    null;
+
+
+  lastHandTime =
+    0;
+
+
+  scoreEl.textContent =
+    "0";
+
+
+  fruitCountEl.textContent =
+    "0";
+
+
+  timeEl.textContent =
+    "0.00";
+
+
+  await showCountdown();
+
+
+  startTime =
+    performance.now();
+
+
+  gameRunning =
+    true;
+
+
+  spawnTimer =
+    3;
+
+}
+
+
+
+function finishGame() {
+
+  if (
+    !gameRunning
+  ) {
+
+    return;
+
+  }
+
+
+  gameRunning =
+    false;
+
+
+  const finishTime =
+
+    (
+      performance.now() -
+      startTime
+    ) /
+    1000;
+
+
+  const playerName =
+
+    document
+      .getElementById(
+        "playerName"
+      )
+      .value
+      ||
+      "Player";
+
+
+  const ranking =
+    JSON.parse(
+
+      localStorage
+        .getItem(
+          "fruitV5Scores"
+        )
+      ||
+      "[]"
+
+    );
+
+
+  ranking.push({
+
+    name:
+      playerName
+        .trim()
+        .slice(
+          0,
+          18
+        ),
+
+    time:
+      Number(
+        finishTime
+          .toFixed(
+            2
+          )
+      )
+
+  });
+
+
+  ranking.sort(
+
+    (
+      first,
+      second
+    ) =>
+
+      first.time -
+      second.time
+
+  );
+
+
+  localStorage.setItem(
+
+    "fruitV5Scores",
+
+    JSON.stringify(
+
+      ranking.slice(
+        0,
+        20
+      )
+
+    )
+
+  );
+
+
+  document
+    .getElementById(
+      "finalTime"
+    )
+    .textContent =
+      finishTime
+        .toFixed(
+          2
+        )
+      +
+      "s";
+
+
+  document
+    .getElementById(
+      "ranking"
+    )
+    .innerHTML =
+
+      ranking
+        .slice(
+          0,
+          10
+        )
+        .map(
+          (
+            player,
+            position
+          ) => {
+
+            const medal =
+
+              [
+                "🥇",
+                "🥈",
+                "🥉"
+              ][position]
+
+              ||
+
+              "#" +
+              (
+                position +
+                1
+              );
+
+
+            return `
+
+              <div class="rank">
+
+                <b>
+                  ${medal}
+                </b>
+
+                <span>
+                  ${player.name}
+                </span>
+
+                <b>
+                  ${player.time.toFixed(2)}s
+                </b>
+
+              </div>
+
+            `;
+
+          }
+        )
+        .join(
+          ""
+        );
+
+
+  finishScreen
+    .classList
+    .remove(
+      "hidden"
+    );
+
+}
+
+
+
+document
+  .getElementById(
+    "startBtn"
+  )
+  .onclick =
+    startGame;
+
+
+document
+  .getElementById(
+    "cameraBtn"
+  )
+  .onclick =
+    openCamera;
+
+
+document
+  .getElementById(
+    "againBtn"
+  )
+  .onclick =
+    () => {
+
+
+      finishScreen
+        .classList
+        .add(
+          "hidden"
+        );
+
+
+      startScreen
+        .classList
+        .remove(
+          "hidden"
+        );
+
+
+      hud
+        .classList
+        .add(
+          "hidden"
+        );
+
+    };
+
+</script>
+
+</body>
+</html>
