@@ -499,7 +499,9 @@ class Fruit {
 
 
     this.emoji =
-      fruitList[
+  this.isBomb
+    ? "💣"
+    : fruitList[
         Math.floor(
           Math.random() *
           fruitList.length
@@ -757,12 +759,12 @@ function checkSlice(
         true;
 
 
-      score +=
-        100;
-
-
-      slicedCount +=
-        1;
+    if (fruit.isBomb) {
+  score -= 300;
+} else {
+  score += 100;
+  slicedCount += 1;
+}
 
 
       scoreEl.textContent =
