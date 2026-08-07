@@ -1113,13 +1113,29 @@ function gameLoop() {
 
     if (
       spawnTimer <= 0 &&
-      activeFruit < 2
+      activeFruit < 4
     ) {
 
 
-      fruits.push(
-        new Fruit()
-      );
+   const batchSize =
+  Math.floor(
+    random(
+      2,
+      4
+    )
+  );
+
+for (
+  let i = 0;
+  i < batchSize;
+  i++
+) {
+
+  fruits.push(
+    new Fruit()
+  );
+
+}
 
 
       spawnTimer =
