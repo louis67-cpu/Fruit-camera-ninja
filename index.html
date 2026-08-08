@@ -833,14 +833,7 @@ if (combo >= 2) {
       }
 
 
-      if (
-        score >=
-        2000
-      ) {
-
-        finishGame();
-
-      }
+  
 
     }
 
@@ -1142,7 +1135,10 @@ function gameLoop() {
         ) /
         1000
       ).toFixed(2);
-
+if ((performance.now() - startTime) >= 30000) {
+  finishGame();
+  return;
+  }
 
     spawnTimer--;
 
