@@ -261,8 +261,13 @@ button{
 
 <script>
 
+
+const sliceSound = new Audio("slice.mp3");
+const bombSound = new Audio("bomb.mp3");
+
 const video =
   document.getElementById("video");
+
 
 const canvas =
   document.getElementById("canvas");
@@ -759,8 +764,10 @@ function checkSlice(
         true;
 
 if (fruit.isBomb) {
-  score -= 300;
+    bombSound.currentTime = 0;
+    bombSound.play();
 
+    score -= 300;
   // Vibrate when bomb is sliced
   if (navigator.vibrate) {
     navigator.vibrate([150, 60, 250]);
@@ -783,6 +790,9 @@ if (fruit.isBomb) {
   }, 500);
 
 } else {
+  sliceSound.currentTime = 0;
+  sliceSound.play();
+
   score += 100;
   slicedCount += 1;
 }
