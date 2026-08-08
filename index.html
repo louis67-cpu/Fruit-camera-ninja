@@ -331,7 +331,8 @@ let score = 0;
 let slicedCount = 0;
 
 let spawnTimer = 0;
-
+let combo = 0;
+let lastSliceTime = 0;
 
 let fruits = [];
 
@@ -793,11 +794,21 @@ if (fruit.isBomb) {
   sliceSound.currentTime = 0;
   sliceSound.play();
 
-  score += 100;
-  slicedCount += 1;
+  const now = Date.now();
+
+if (now - lastSliceTime < 800) {
+  combo++;
+} else {
+  combo = 1;
 }
 
+lastSliceTime = now;
 
+score += 100 * combo;
+slicedCount += 1;
+if (combo >= 2) {
+  statusEl.textContent = "🔥 COMBO x" + combo;
+  }
       scoreEl.textContent =
         score;
 
